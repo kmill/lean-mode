@@ -94,6 +94,27 @@
 
 (defconst lean-next-error-buffer-name "*Lean Next Error*")
 
+(define-button-type 'lean-suggestion-button
+  'follow-link t
+  'action 'lean-copy-try-this
+  'help-echo "mouse-1: copy suggestion into buffer")
+
+(defun lean-copy-try-this (event)
+  (interactive "e")
+  (let ((window (posn-window (event-end event)))
+        (pos (posn-point (event-end event))))
+    (with-current-buffer (window-buffer window)
+      (let ((sugg (or (get-pos-property pos 'lean-suggestion)
+                      ; don't understand why this is needed:
+                      (get-pos-property (1+ pos) 'lean-suggestion))))
+        (let ((buff (get-file-buffer (alist-get 'filename sugg))))
+          (when buff
+            (message (buffer-name buff))
+            (with-current-buffer buff
+              (goto-char (alist-get 'pos sugg))
+              (princ (alist-get 'suggest sugg) buff)
+              (insert ","))))))))
+
 (defun lean-next-error--handler ()
   (when (lean-info-buffer-active lean-next-error-buffer-name)
     (let ((deactivate-mark) ; keep transient mark
@@ -109,7 +130,18 @@
       (lean-with-info-output-to-buffer lean-next-error-buffer-name
        (dolist (e errors)
          (princ (format "%d:%d: " (flycheck-error-line e) (flycheck-error-column e)))
-         (princ (flycheck-error-message e))
+         (let ((i (point)))
+           (princ (flycheck-error-message e))
+           (when (string-prefix-p "Try this:" (flycheck-error-message e))
+             (make-button i (+ i (length "Try this:"))
+                          :type 'lean-suggestion-button
+                          'lean-suggestion
+                          (list (cons 'filename (flycheck-error-filename e))
+                                (cons 'pos (flycheck-error-pos e))
+                                (cons 'suggest
+                                      (string-trim
+                                       (substring (flycheck-error-message e)
+                                                  (length "Try this: "))))))))
          (princ "\n\n"))
        (when flycheck-current-errors
          (princ (format "(%d more messages above...)" (length flycheck-current-errors))))))))
