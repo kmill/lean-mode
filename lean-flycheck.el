@@ -113,7 +113,8 @@
             (with-current-buffer buff
               (goto-char (alist-get 'pos sugg))
               (princ (alist-get 'suggest sugg) buff)
-              (insert ","))))))))
+              (insert ","))
+            (pop-to-buffer buff)))))))
 
 (defun lean-next-error--handler ()
   (when (lean-info-buffer-active lean-next-error-buffer-name)
